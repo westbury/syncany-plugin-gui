@@ -1,10 +1,6 @@
 package org.syncany.gui.wizard;
 
-import java.io.File;
-import java.lang.reflect.Type;
 import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.FocusAdapter;
@@ -20,22 +16,17 @@ import org.eclipse.swt.widgets.Listener;
 import org.eclipse.swt.widgets.Table;
 import org.eclipse.swt.widgets.TableColumn;
 import org.eclipse.swt.widgets.TableItem;
+import org.syncany.api.transfer.Plugin;
+import org.syncany.api.transfer.TransferPlugin;
 import org.syncany.gui.util.SWTResourceManager;
 import org.syncany.gui.util.WidgetDecorator;
-import org.syncany.plugins.Plugin;
 import org.syncany.plugins.Plugins;
-import org.syncany.plugins.transfer.StorageException;
-import org.syncany.plugins.transfer.TransferPlugin;
-import org.syncany.plugins.transfer.TransferPluginOption;
-import org.syncany.plugins.transfer.TransferPluginOptions;
-import org.syncany.plugins.transfer.TransferSettings;
 import org.syncany.util.EnvironmentUtil;
 
 /**
  * @author Philipp C. Heckel <philipp.heckel@gmail.com>
  */
 public class PluginSelectComposite extends Composite {
-	private static final Logger logger = Logger.getLogger(PluginSelectComposite.class.getSimpleName());	
 	private static final String PLUGIN_ICON_RESOURCE_FORMAT = "/" + Plugin.class.getPackage().getName().replace('.', '/') + "/%s/icon24.png";
 	
 	private Table pluginTable;
@@ -45,7 +36,7 @@ public class PluginSelectComposite extends Composite {
 	public PluginSelectComposite(Composite parent, int style) {
 		super(parent, style);	
 		
-		this.plugins = Plugins.list(TransferPlugin.class);
+		this.plugins = Plugins.transferPlugins();
 		this.selectedPlugin = null;
 		
 		this.createControls();
@@ -120,45 +111,14 @@ public class PluginSelectComposite extends Composite {
 	    pluginTableColumnText.setWidth(320); // Only relevant on Windows
 	    
 	    for (TransferPlugin plugin : plugins) {	   	    	
-		    if (isSupportedPlugin(plugin)) {
-		    	String pluginImageResource = String.format(PLUGIN_ICON_RESOURCE_FORMAT, plugin.getId());
-			    Image image = SWTResourceManager.getImage(pluginImageResource);
-	
-			    TableItem tableItem = new TableItem(pluginTable, SWT.NONE);		    
-			    tableItem.setImage(0, image);
-			    tableItem.setText(1, plugin.getName());		    
-			    tableItem.setData(plugin);
-		    }
-	    }	    	   
-	}
+	    	String pluginImageResource = String.format(PLUGIN_ICON_RESOURCE_FORMAT, plugin.getId());
+	    	Image image = SWTResourceManager.getImage(pluginImageResource);
 
-	private boolean isSupportedPlugin(TransferPlugin plugin) {
-		try {
-			TransferSettings pluginSettings = plugin.createEmptySettings();			
-			List<TransferPluginOption> pluginOptions = TransferPluginOptions.getOrderedOptions(pluginSettings.getClass());
-			
-			for (TransferPluginOption pluginOption : pluginOptions) {
-				if (pluginOption.isVisible()) {
-					Type optionType = pluginOption.getType();
-					boolean optionSupported = optionType == String.class
-							|| optionType == int.class
-							|| optionType == File.class
-							|| (optionType instanceof Class && ((Class<?>) optionType).isEnum());
-					
-					if (!optionSupported) {					
-						logger.log(Level.FINE, "- Plugin '" + plugin.getId() + "' is NOT supported by the GUI; reason is option '" + pluginOption.getName() + "' of type '" + pluginOption.getType() + "'.");
-						return false;
-					}
-				}
-			}
-			
-			logger.log(Level.FINE, "- Plugin '" + plugin.getId() + "' is supported by the GUI.");
-			return true;
-		}
-		catch (StorageException e) {
-			logger.log(Level.FINE, "- Plugin '" + plugin.getId() + "' is NOT supported by the GUI; reason is an exception.", e);
-			return false;
-		}
+	    	TableItem tableItem = new TableItem(pluginTable, SWT.NONE);		    
+	    	tableItem.setImage(0, image);
+	    	tableItem.setText(1, plugin.getName());		    
+	    	tableItem.setData(plugin);
+	    }	    	   
 	}
 
 	public TransferPlugin getSelectedPlugin() {

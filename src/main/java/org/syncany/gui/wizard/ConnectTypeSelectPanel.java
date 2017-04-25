@@ -36,8 +36,8 @@ import org.syncany.gui.Panel;
 import org.syncany.gui.util.I18n;
 import org.syncany.gui.util.WidgetDecorator;
 import org.syncany.operations.init.ApplicationLink;
-import org.syncany.plugins.transfer.StorageException;
-import org.syncany.plugins.transfer.TransferPlugin;
+import org.syncany.api.transfer.StorageException;
+import org.syncany.api.transfer.TransferPlugin;
 
 /**
  * @author Philipp C. Heckel <philipp.heckel@gmail.com>

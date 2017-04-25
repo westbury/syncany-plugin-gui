@@ -22,6 +22,7 @@ import java.util.logging.Logger;
 
 import org.eclipse.swt.widgets.Display;
 import org.syncany.config.to.ConfigTO;
+import org.syncany.config.to.Connection;
 import org.syncany.crypto.CipherUtil;
 import org.syncany.gui.util.I18n;
 import org.syncany.gui.wizard.ConnectTypeSelectPanel.ConnectPanelSelection;
@@ -34,7 +35,8 @@ import org.syncany.operations.daemon.messages.GetPasswordUserInteractionExternal
 import org.syncany.operations.init.ApplicationLink;
 import org.syncany.operations.init.ConnectOperationOptions;
 import org.syncany.operations.init.ConnectOperationOptions.ConnectOptionsStrategy;
-import org.syncany.plugins.transfer.TransferPlugin;
+import org.syncany.api.transfer.TransferPlugin;
+import org.syncany.api.transfer.TransferSettings;
 
 import com.google.common.eventbus.Subscribe;
 
@@ -243,8 +245,13 @@ public class ConnectPanelController extends AbstractInitPanelController {
 				}
 			}
 			else {
-				connectOptions.setStrategy(ConnectOptionsStrategy.CONNECTION_TO);	
-				configTO.setTransferSettings(pluginSettingsPanel.getPluginSettings());
+				connectOptions.setStrategy(ConnectOptionsStrategy.CONNECTION_TO);
+				
+				TransferSettings transferSettings = pluginSettingsPanel.getPluginSettings();
+				Connection connection = new Connection();
+				connection.setType(transferSettings.getType());
+				connection.setTransferSettings(transferSettings);
+				configTO.setConnection(connection);
 			}
 						
 			ConnectManagementRequest connectManagementRequest = new ConnectManagementRequest(connectOptions);

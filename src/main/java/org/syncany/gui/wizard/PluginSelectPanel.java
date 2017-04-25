@@ -8,7 +8,7 @@ import org.eclipse.swt.widgets.Label;
 import org.syncany.gui.Panel;
 import org.syncany.gui.util.I18n;
 import org.syncany.gui.util.WidgetDecorator;
-import org.syncany.plugins.transfer.TransferPlugin;
+import org.syncany.api.transfer.TransferPlugin;
 
 /**
  * @author Philipp C. Heckel <philipp.heckel@gmail.com>

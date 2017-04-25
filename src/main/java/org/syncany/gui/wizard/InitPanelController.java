@@ -24,6 +24,7 @@ import java.util.logging.Logger;
 
 import org.syncany.config.GuiConfigHelper;
 import org.syncany.config.to.ConfigTO;
+import org.syncany.config.to.Connection;
 import org.syncany.config.to.DefaultRepoTOFactory;
 import org.syncany.config.to.GuiConfigTO;
 import org.syncany.config.to.RepoTOFactory;
@@ -39,7 +40,8 @@ import org.syncany.operations.daemon.messages.ListWatchesManagementResponse;
 import org.syncany.operations.init.GenlinkOperationOptions;
 import org.syncany.operations.init.InitOperationOptions;
 import org.syncany.operations.init.InitOperationResult;
-import org.syncany.plugins.transfer.TransferPlugin;
+import org.syncany.api.transfer.TransferPlugin;
+import org.syncany.api.transfer.TransferSettings;
 
 import com.google.common.eventbus.Subscribe;
 
@@ -162,7 +164,12 @@ public class InitPanelController extends AbstractInitPanelController {
 			ConfigTO configTO = new ConfigTO();
 			configTO.setDisplayName(System.getProperty("user.name"));
 			configTO.setMachineName(CipherUtil.createRandomAlphabeticString(20));
-			configTO.setTransferSettings(pluginSettingsPanel.getPluginSettings());
+			
+			TransferSettings transferSettings = pluginSettingsPanel.getPluginSettings();
+			Connection connection = new Connection();
+			connection.setType(transferSettings.getType());
+			connection.setTransferSettings(transferSettings);
+			configTO.setConnection(connection);
 
 			GenlinkOperationOptions genlinkOptions = new GenlinkOperationOptions();
 			genlinkOptions.setShortUrl(guiConfig.isShortLinks());

@@ -1,1 +1,16 @@
 apply from: 'core/gradle/gradle/plugins.settings.gradle'
+
+include ':syncany-api'
+include ':syncany-plugin-tests'
+project(':syncany-api').projectDir = new File(settingsDir, '../syncany/syncany-api')
+project(':syncany-plugin-tests').projectDir = new File(settingsDir, '../syncany/syncany-plugin-tests')
+
+include ':syncany-lib'
+project(':syncany-lib').projectDir = new File(settingsDir, '../syncany/syncany-lib')
+
+include ':syncany-util'
+project(':syncany-util').projectDir = new File(settingsDir, '../syncany/syncany-util')
+
+include ':syncany-cli'
+project(':syncany-cli').projectDir = new File(settingsDir, '../syncany/syncany-cli')
+

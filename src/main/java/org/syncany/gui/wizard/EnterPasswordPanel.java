@@ -75,7 +75,7 @@ public class EnterPasswordPanel extends Panel {
 		passwordText.setBackground(WidgetDecorator.WHITE);
 		passwordText.addModifyListener(new ModifyListener() {			
 			@Override
-			public void modifyText(ModifyEvent e) {
+			public void modifyText(ModifyEvent event) {
 				if (firstValidationDone) {
 					validatePanel();
 				}

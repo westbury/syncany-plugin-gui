@@ -18,7 +18,7 @@
 package org.syncany.gui.wizard;
 
 import org.syncany.gui.util.I18n;
-import org.syncany.plugins.transfer.StorageTestResult;
+import org.syncany.api.transfer.StorageTestResult;
 
 /**
  * @author Philipp C. Heckel <philipp.heckel@gmail.com>

@@ -5,6 +5,7 @@ import java.lang.reflect.Constructor;
 import java.net.URI;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -16,8 +17,8 @@ import org.eclipse.swt.widgets.Text;
 import org.syncany.gui.util.DesktopUtil;
 import org.syncany.gui.util.I18n;
 import org.syncany.gui.util.WidgetDecorator;
-import org.syncany.plugins.transfer.StorageException;
-import org.syncany.plugins.transfer.TransferSettings;
+import org.syncany.api.transfer.StorageException;
+import org.syncany.api.transfer.TransferSettings;
 import org.syncany.plugins.transfer.oauth.OAuth;
 import org.syncany.plugins.transfer.oauth.OAuthGenerator;
 import org.syncany.plugins.transfer.oauth.OAuthGenerator.WithExtractor;
@@ -344,11 +345,6 @@ class PluginSettingsPanelOAuthHelper {
 			disableButton();
 			setButtonText(STRING_BUTTON_WAITING);
 		}
-	}
-
-	/* Java 7 sadly does not support java.util.function.Consumer<T> from Java 8, backporting */
-	public interface Consumer<T> {
-		void accept(T t);
 	}
 
 }

@@ -31,7 +31,7 @@ import org.syncany.gui.Panel;
 import org.syncany.gui.util.DesktopUtil;
 import org.syncany.gui.util.I18n;
 import org.syncany.gui.util.WidgetDecorator;
-import org.syncany.plugins.Plugin;
+import org.syncany.api.transfer.Plugin;
 import org.syncany.plugins.Plugins;
 import org.syncany.plugins.gui.GuiPlugin;
 import org.syncany.plugins.local.LocalTransferPlugin;
@@ -106,7 +106,7 @@ public class AboutPanel extends Panel {
 		
 		String pluginVersions = "";
 	 	
-	 	for (Plugin plugin : Plugins.list()) {
+	 	for (Plugin plugin : Plugins.transferPlugins()) {
 	 		if (!LocalTransferPlugin.ID.equals(plugin.getId())) {
 	 			pluginVersions += I18n.getText("org.syncany.gui.preferences.AboutPanel.version.description.plugin", plugin.getName(), plugin.getVersion()) + "\n";
 	 		}

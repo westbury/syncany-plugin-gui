@@ -1,12 +1,11 @@
 package org.syncany.gui.wizard;
 
 import java.io.File;
-import java.lang.reflect.Field;
-import java.util.HashMap;
+import java.util.Arrays;
 import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -15,8 +14,7 @@ import org.eclipse.swt.events.ModifyEvent;
 import org.eclipse.swt.events.ModifyListener;
 import org.eclipse.swt.events.SelectionAdapter;
 import org.eclipse.swt.events.SelectionEvent;
-import org.eclipse.swt.events.VerifyEvent;
-import org.eclipse.swt.events.VerifyListener;
+import org.eclipse.swt.events.SelectionListener;
 import org.eclipse.swt.graphics.Image;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
@@ -29,18 +27,16 @@ import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.FileDialog;
 import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Text;
+import org.syncany.api.FileType;
+import org.syncany.api.transfer.PropertyVisitor;
+import org.syncany.api.transfer.Setter;
+import org.syncany.api.transfer.TransferPlugin;
+import org.syncany.api.transfer.TransferSettings;
+import org.syncany.api.transfer.TransferSettingsSetter;
 import org.syncany.gui.Panel;
 import org.syncany.gui.util.I18n;
 import org.syncany.gui.util.SWTResourceManager;
 import org.syncany.gui.util.WidgetDecorator;
-import org.syncany.gui.wizard.PluginSettingsPanelOAuthHelper.Consumer;
-import org.syncany.plugins.transfer.FileType;
-import org.syncany.plugins.transfer.StorageException;
-import org.syncany.plugins.transfer.TransferPlugin;
-import org.syncany.plugins.transfer.TransferPluginOption;
-import org.syncany.plugins.transfer.TransferPluginOption.ValidationResult;
-import org.syncany.plugins.transfer.TransferPluginOptions;
-import org.syncany.plugins.transfer.TransferSettings;
 
 /**
  * @author Philipp C. Heckel <philipp.heckel@gmail.com>
@@ -55,9 +51,8 @@ public class PluginSettingsPanel extends Panel {
 	private TransferSettings pluginSettings;
 	private static PluginSettingsPanelOAuthHelper pluginSettingsPanelOAuthHelper;
 
-	private Map<TransferPluginOption, Control> pluginOptionControlMap;
-	private Set<TransferPluginOption> invalidPluginOptions;
-
+	private Set<Control> invalidPluginOptions = new HashSet<>();
+	
 	public PluginSettingsPanel(WizardDialog wizardParentDialog, Composite parent, int style) {
 		super(wizardParentDialog, parent, style);
 	}
@@ -81,9 +76,6 @@ public class PluginSettingsPanel extends Panel {
 		try {
 			this.plugin = plugin;
 			this.pluginSettings = plugin.createEmptySettings();
-
-			this.pluginOptionControlMap = new HashMap<>();
-			this.invalidPluginOptions = new HashSet<>();
 		}
 		catch (Exception e) {
 			throw new RuntimeException(e);
@@ -104,8 +96,6 @@ public class PluginSettingsPanel extends Panel {
 	}
 
 	private void createControls() {
-		List<TransferPluginOption> pluginOptions = TransferPluginOptions.getOrderedOptions(pluginSettings.getClass());
-
 		// Main composite
 		GridLayout mainCompositeGridLayout = new GridLayout(3, false);
 		mainCompositeGridLayout.marginTop = 15;
@@ -126,12 +116,56 @@ public class PluginSettingsPanel extends Panel {
 		createOAuthControls();
 
 		// Create fields
-		for (TransferPluginOption pluginOption : pluginOptions) {
-			if (pluginOption.isVisible()) {
-				createPluginOptionControl(pluginOption);
-			}
-		}
+		pluginSettings.visitProperties(new PropertyVisitor() {
 
+			@Override
+			public void stringProperty(String id, String displayName, boolean isRequired, boolean storeEncrypted, boolean sensitive, boolean singular,
+					boolean visible, Supplier<String> value, Consumer<String> setter) {
+				if (visible) {
+					createPluginOptionControl(displayName, sensitive, isRequired);
+					createPluginOptionTextControl(displayName, isRequired, sensitive, value.get(), setter);					
+				}
+			}
+
+			@Override
+			public void integerProperty(String id, String displayName, boolean isRequired, boolean storeEncrypted, boolean sensitive,
+					boolean singular, boolean visible, Supplier<Integer> value, Consumer<Integer> setter) {
+				if (visible) {
+					createPluginOptionControl(displayName, sensitive, isRequired);
+					createPluginOptionIntegerControl(sensitive, value.get(), setter);					
+				}
+			}
+
+			@Override
+			public void booleanProperty(String id, String displayName, boolean isRequired, boolean singular, boolean visible, boolean value,
+					Setter<Boolean> setter) {
+				if (visible) {
+					createPluginOptionControl(displayName, false, isRequired);
+					createPluginOptionBooleanControl(value, setter);					
+				}
+			}
+
+			@Override
+			public void fileProperty(String id, String displayName, boolean isRequired, boolean singular, boolean visible,
+					FileType fileType, File value, Setter<File> setter) {
+				if (visible) {
+					createPluginOptionControl(displayName, false, isRequired);
+					createPluginOptionFileControl(displayName, isRequired, fileType, value, setter);						
+				}
+			}
+
+			@Override
+			public <T extends Enum<T>> void enumProperty(String id, String displayName, boolean isRequired, T[] options, T value, Setter<T> setter) {
+				createPluginOptionControl(displayName, false, isRequired);
+				createPluginOptionEnumControl(options, value, setter);			
+			}
+
+			@Override
+			public void nestedSettingsProperty(String id, String displayName, boolean isRequired, TransferSettingsSetter<?> setter) {
+				// TODO
+			}
+		});
+		
 		// Warning message and label
 		String warningImageResource = "/" + WizardDialog.class.getPackage().getName().replace(".", "/") + "/warning-icon.png";
 		Image warningImage = SWTResourceManager.getImage(warningImageResource);
@@ -209,113 +243,67 @@ public class PluginSettingsPanel extends Panel {
 		pluginSettingsPanelOAuthHelper.start();
 	}
 
-	private void createPluginOptionControl(final TransferPluginOption pluginOption) {
-		Field pluginField = pluginOption.getField();
-
+	private void createPluginOptionControl(String displayName, boolean sensitive, boolean isRequired) {
 		// Label "Option X:"
 		GridData pluginOptionLabelGridData = new GridData(SWT.LEFT, SWT.CENTER, false, false);
 		pluginOptionLabelGridData.verticalIndent = 2;
 		pluginOptionLabelGridData.horizontalSpan = 3;
 
-		String pluginOptionLabelText = pluginOption.getDescription();
+		String pluginOptionLabelText = displayName;
 
-		if (pluginOption.isSensitive()) {
-			pluginOptionLabelText += " " + ((pluginOption.isRequired())
+		if (sensitive) {
+			pluginOptionLabelText += " " + (isRequired
 							? I18n.getText("org.syncany.gui.wizard.PluginSettingsPanel.pluginOptionLabelExt.notDisplayed")
 							: I18n.getText("org.syncany.gui.wizard.PluginSettingsPanel.pluginOptionLabelExt.notDisplayedOptional"));
 		}
 		else {
-			pluginOptionLabelText += (pluginOption.isRequired()) ? "" : " " + I18n.getText("org.syncany.gui.wizard.PluginSettingsPanel.pluginOptionLabelExt.optional");
+			pluginOptionLabelText += isRequired ? "" : " " + I18n.getText("org.syncany.gui.wizard.PluginSettingsPanel.pluginOptionLabelExt.optional");
 		}
 
 		Label pluginOptionLabel = new Label(this, SWT.WRAP);
 		pluginOptionLabel.setLayoutData(pluginOptionLabelGridData);
 		pluginOptionLabel.setText(pluginOptionLabelText);
-
-		Control pluginOptionControl;
-		
-		if (pluginField.getType() == File.class) {
-			pluginOptionControl = createPluginOptionFileControl(pluginOption, pluginField);						
-		}
-		else if (pluginField.getType() instanceof Class && ((Class<?>) pluginField.getType()).isEnum()) {
-			pluginOptionControl = createPluginOptionEnumControl(pluginOption, pluginField);			
-		}
-		else {
-			pluginOptionControl = createPluginOptionTextControl(pluginOption, pluginField);					
-		}
-		
-		// Set cache
-		pluginOptionControlMap.put(pluginOption, pluginOptionControl);
 	}
 
-	private Control createPluginOptionFileControl(TransferPluginOption pluginOption, Field pluginField) {
+	private void createPluginOptionFileControl(String displayName, boolean isRequired, FileType fileType, File value, Setter<File> setter) {
 		// Create controls
-		Text pluginOptionValueText = createPluginOptionTextField(pluginOption, pluginField, 2);
-		createPluginOptionFileSelectButton(pluginOption, pluginOptionValueText);
 		
-		return pluginOptionValueText;
+		Consumer<String> stringSetter = new Consumer<String>() {
+			@Override
+			public void accept(String value) {
+				setter.setValue(new File(value));
+			}
+		};
+		
+		Text pluginOptionValueText = createPluginOptionTextField(displayName, isRequired, false, value.getAbsolutePath(), stringSetter, 2);
+		createPluginOptionFileSelectButton(fileType, setter, pluginOptionValueText);
 	}
 	
-	private Control createPluginOptionEnumControl(TransferPluginOption pluginOption, Field pluginField) {
-		Combo pluginOptionCombo = new Combo(this, SWT.DROP_DOWN | SWT.BORDER | SWT.READ_ONLY);
-		pluginOptionCombo.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1));
+	private <T extends Enum<T>> void createPluginOptionEnumControl(T[] options, T value, Setter<T> setter) {
+		Combo combo = new Combo(this, SWT.DROP_DOWN | SWT.BORDER | SWT.READ_ONLY);
+		combo.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1));
 
-		for (Object enumValue : pluginField.getType().getEnumConstants()) {
-			pluginOptionCombo.add(enumValue.toString());				
+		for (T enumValue : options) {
+			combo.add(enumValue.name());				
 		}					
 		
-		setPluginOptionEnumModifyListener(pluginOption, pluginOptionCombo);
-		selectPluginOptionEnumDefault(pluginOption, pluginField, pluginOptionCombo);		
-		modifyPluginOptionEnum(pluginOption, pluginOptionCombo);		
-		
-		return pluginOptionCombo;
-	}
-
-	private void selectPluginOptionEnumDefault(TransferPluginOption pluginOption, Field pluginField, Combo pluginOptionCombo) {
-		try {
-			pluginField.setAccessible(true);
-			Object pluginFieldValue = pluginField.get(pluginSettings);
-			
-			int pluginOptionComboIndex = getPluginOptionComboIndex(pluginOptionCombo, pluginFieldValue);
-			pluginOptionCombo.select(pluginOptionComboIndex);			
-		}
-		catch (IllegalArgumentException | IllegalAccessException e) {
-			logger.log(Level.WARNING, "Could not extract the default value for the Enum. Selecting first value.");
-			pluginOptionCombo.select(0);
-		}
-	}
-
-	private int getPluginOptionComboIndex(Combo pluginOptionCombo, Object pluginFieldValue) {
-		if (pluginFieldValue != null) {
-			for (int i = 0; i < pluginOptionCombo.getItemCount(); i++) {
-				String comboEnumValue = pluginOptionCombo.getItem(i);
-
-				if (comboEnumValue.equals(pluginFieldValue.toString())) {
-					return i;
-				}
-			}
-			
-			return 0;
-		}
-		else {
-			return 0;
-		}
-	}
-
-	private void setPluginOptionEnumModifyListener(final TransferPluginOption pluginOption, final Combo pluginOptionCombo) {
-		pluginOptionCombo.addModifyListener(new ModifyListener() {
+		combo.addModifyListener(new ModifyListener() {
 			@Override
-			public void modifyText(ModifyEvent e) {
-				modifyPluginOptionEnum(pluginOption, pluginOptionCombo);
+			public void modifyText(ModifyEvent event) {
+				T newValue = options[combo.getSelectionIndex()];
+				setter.setValue(newValue);
 			}
 		});
+
+		int comboIndex = Arrays.asList(options).indexOf(value);
+		combo.select(comboIndex);			
 	}
 
-	private Control createPluginOptionTextControl(TransferPluginOption pluginOption, Field pluginField) {
-		return createPluginOptionTextField(pluginOption, pluginField, 3);
+	private void createPluginOptionTextControl(String displayName, boolean isRequired, boolean sensitive, String value, Consumer<String> setter) {
+		createPluginOptionTextField(displayName, isRequired, sensitive, value, setter, 3);
 	}
 
-	private Text createPluginOptionTextField(TransferPluginOption pluginOption, Field pluginField, int horizontalSpan) {
+	private Text createPluginOptionTextField(String displayName, boolean isRequired, boolean sensitive, String initialValue, Consumer<String> setter, int horizontalSpan) {
 		// Textfield "Option X"
 		GridData optionValueTextGridData = new GridData(SWT.FILL, SWT.CENTER, true, false);
 		optionValueTextGridData.verticalIndent = 0;
@@ -323,153 +311,132 @@ public class PluginSettingsPanel extends Panel {
 		optionValueTextGridData.minimumWidth = 200;
 		optionValueTextGridData.grabExcessHorizontalSpace = true;
 
-		int optionValueTextStyle = (pluginOption.isSensitive()) ? SWT.BORDER | SWT.PASSWORD : SWT.BORDER;
+		int optionValueTextStyle = sensitive ? SWT.BORDER | SWT.PASSWORD : SWT.BORDER;
 
 		Text pluginOptionValueText = new Text(this, optionValueTextStyle);
 		pluginOptionValueText.setLayoutData(optionValueTextGridData);
 		pluginOptionValueText.setBackground(WidgetDecorator.WHITE);
 
-		setPluginOptionTextFieldDefaultValue(pluginOptionValueText, pluginField);
-		setPluginOptionTextFieldModifyListener(pluginOption, pluginOptionValueText);
-		setPluginOptionTextFieldVerifyListener(pluginOption, pluginOptionValueText);
+		if (initialValue != null) {
+			pluginOptionValueText.setText(initialValue);
+		}
+		pluginOptionValueText.addModifyListener(new ModifyListener() {
+			@Override
+			public void modifyText(ModifyEvent event) {
+				if (isRequired && pluginOptionValueText.getText().isEmpty()) {
+					invalidPluginOptions.add(pluginOptionValueText);
+					WidgetDecorator.markAsInvalid(pluginOptionValueText);
+				}
+				else {
+					invalidPluginOptions.remove(pluginOptionValueText);
+					WidgetDecorator.markAsValid(pluginOptionValueText);
+				}
+
+					if (pluginOptionValueText.getText().isEmpty()) {
+						setter.accept(null);
+					} else {
+						setter.accept(pluginOptionValueText.getText());
+					}
+//				} catch (StorageException e2) {
+//					if (!sensitive) {
+//						logger.log(Level.WARNING, "Cannot set field '" + displayName + "' with value '" + pluginOptionValueText.getText() + "'", e);
+//					}
+//					else {
+//						logger.log(Level.WARNING, "Cannot set field '" + displayName + "' with sensitive value.");
+//					}
+//					invalidPluginOptions.add(pluginOptionValueText);
+//					WidgetDecorator.markAsInvalid(pluginOptionValueText);
+//				}
+			}
+		});
 
 		WidgetDecorator.normal(pluginOptionValueText);
 		
 		return pluginOptionValueText;
 	}
 
-	private Button createPluginOptionFileSelectButton(TransferPluginOption pluginOption, Text pluginOptionValueText) {
+	private void createPluginOptionIntegerControl(boolean sensitive, int initialValue, Consumer<Integer> setter) {
+		// Textfield "Option X"
+		GridData optionValueTextGridData = new GridData(SWT.FILL, SWT.CENTER, true, false);
+		optionValueTextGridData.verticalIndent = 0;
+		optionValueTextGridData.horizontalSpan = 3;
+		optionValueTextGridData.minimumWidth = 200;
+		optionValueTextGridData.grabExcessHorizontalSpace = true;
+
+		int optionValueTextStyle = sensitive ? SWT.BORDER | SWT.PASSWORD : SWT.BORDER;
+
+		Text pluginOptionValueText = new Text(this, optionValueTextStyle);
+		pluginOptionValueText.setLayoutData(optionValueTextGridData);
+		pluginOptionValueText.setBackground(WidgetDecorator.WHITE);
+
+		pluginOptionValueText.setText(Integer.toString(initialValue));
+
+		pluginOptionValueText.addModifyListener(new ModifyListener() {
+			@Override
+			public void modifyText(ModifyEvent event) {
+				String newValue = pluginOptionValueText.getText();
+				if (newValue.isEmpty()) {
+					setter.accept(0);
+				} else {
+					try {
+						setter.accept(Integer.valueOf(newValue));
+
+						invalidPluginOptions.remove(pluginOptionValueText);
+						WidgetDecorator.markAsValid(pluginOptionValueText);
+					} catch (NumberFormatException e) {
+						invalidPluginOptions.add(pluginOptionValueText);
+						WidgetDecorator.markAsInvalid(pluginOptionValueText);
+					}
+				}
+			}
+		});
+
+		WidgetDecorator.normal(pluginOptionValueText);
+	}
+
+	private void createPluginOptionBooleanControl(boolean initialValue, Setter<Boolean> setter) {
+		// Textfield "Option X"
+		GridData optionValueTextGridData = new GridData(SWT.FILL, SWT.CENTER, true, false);
+		optionValueTextGridData.verticalIndent = 0;
+		optionValueTextGridData.horizontalSpan = 3;
+		optionValueTextGridData.minimumWidth = 200;
+		optionValueTextGridData.grabExcessHorizontalSpace = true;
+
+		Button pluginOptionValueText = new Button(this, SWT.CHECK);
+		pluginOptionValueText.setLayoutData(optionValueTextGridData);
+		pluginOptionValueText.setBackground(WidgetDecorator.WHITE);
+
+		pluginOptionValueText.setSelection(initialValue);
+
+		pluginOptionValueText.addSelectionListener(new SelectionListener() {
+			@Override
+			public void widgetSelected(SelectionEvent event) {
+				setter.setValue(pluginOptionValueText.getSelection());
+			}
+
+			@Override
+			public void widgetDefaultSelected(SelectionEvent event) {
+				setter.setValue(pluginOptionValueText.getSelection());
+			}
+		});
+
+		WidgetDecorator.normal(pluginOptionValueText);
+	}
+
+	private void createPluginOptionFileSelectButton(FileType fileType, Setter<File> setter, Text pluginOptionValueText) {
 		Button pluginOptionFileSelectButton = new Button(this, SWT.NONE);
 		pluginOptionFileSelectButton.setText(I18n.getText("org.syncany.gui.wizard.PluginSettingsPanel.selectFile"));
 
-		setPluginOptionFileSelectListener(pluginOption, pluginOptionValueText, pluginOptionFileSelectButton);
-		
-		return pluginOptionFileSelectButton;
-	}
-
-	private void setPluginOptionFileSelectListener(final TransferPluginOption pluginOption, final Text pluginOptionValueText,
-	                                               final Button pluginOptionFileSelectButton) {
-
 		pluginOptionFileSelectButton.addSelectionListener(new SelectionAdapter() {
 			@Override
-			public void widgetSelected(SelectionEvent e) {
-				onSelectFileClick(pluginOption, pluginOptionValueText);
+			public void widgetSelected(SelectionEvent event) {
+				onSelectFileClick(fileType, setter, pluginOptionValueText);
 			}
 		});
 	}
 
-	private void setPluginOptionTextFieldDefaultValue(Text pluginOptionValueText, Field pluginField) {
-		try {
-			String defaultValue = pluginSettings.getField(pluginField.getName());
-
-			if (defaultValue != null && !defaultValue.isEmpty()) {
-				pluginOptionValueText.setText(defaultValue);
-			}
-		}
-		catch (StorageException e) {
-			throw new RuntimeException("Error creating controls.", e);
-		}
-	}
-
-	private void setPluginOptionTextFieldModifyListener(final TransferPluginOption pluginOption, final Text pluginOptionValueText) {
-		pluginOptionValueText.addModifyListener(new ModifyListener() {
-			@Override
-			public void modifyText(ModifyEvent e) {
-				modifyPluginOptionText(pluginOption, pluginOptionValueText);
-			}
-		});
-	}
-
-	private void modifyPluginOptionText(TransferPluginOption pluginOption, Text pluginOptionValueText) {
-		// Get value (empty is null)
-		String pluginOptionValue = pluginOptionValueText.getText();
-		
-		if ("".equals(pluginOptionValue)) {
-			pluginOptionValue = null;
-		}
-
-		try {			
-			// Set field (at least try to; fails if type mismatches)
-			if (!pluginOption.isSensitive()) {
-				logger.log(Level.INFO, "Setting field '" + pluginOption.getName() + "' with value '" + pluginOptionValue + "'");
-			}
-			pluginSettings.setField(pluginOption.getField().getName(), pluginOptionValue);
-			
-			// Validate value (fails if content mismatches)
-			ValidationResult validationResult = pluginOption.isValid(pluginOptionValue);
-
-			switch (validationResult) {
-				case INVALID_NOT_SET:
-					if (pluginOption.isRequired()) {
-						invalidPluginOptions.add(pluginOption);
-						WidgetDecorator.markAsInvalid(pluginOptionValueText);
-					}
-					else {
-						invalidPluginOptions.remove(pluginOption);
-						WidgetDecorator.markAsValid(pluginOptionValueText);
-					}
-
-					break;
-
-				case INVALID_TYPE:
-					logger.log(Level.WARNING, " Invalid type in field '" + pluginOption.getName() + "'. This should be caught by verify listener!");
-
-					invalidPluginOptions.add(pluginOption);
-					WidgetDecorator.markAsInvalid(pluginOptionValueText);
-
-					break;
-
-				case VALID:
-					invalidPluginOptions.remove(pluginOption);
-					WidgetDecorator.markAsValid(pluginOptionValueText);
-
-					break;
-			}
-		}
-		catch (StorageException e) {
-			if (!pluginOption.isSensitive()) {
-				logger.log(Level.WARNING, "Cannot set field '" + pluginOption.getName() + "' with value '" + pluginOptionValue + "'", e);
-			}
-			else {
-				logger.log(Level.WARNING, "Cannot set field '" + pluginOption.getName() + "' with sensitive value.");
-			}
-			invalidPluginOptions.add(pluginOption);
-			WidgetDecorator.markAsInvalid(pluginOptionValueText);
-		}
-	}
-	
-	private void modifyPluginOptionEnum(TransferPluginOption pluginOption, Combo pluginOptionCombo) {
-		try {
-			if (!pluginOption.isSensitive()) {
-				logger.log(Level.INFO, "Setting field '" + pluginOption.getName() + "' with value '" + pluginOptionCombo.getText() + "'");
-			}
-			pluginSettings.setField(pluginOption.getField().getName(), pluginOptionCombo.getText());
-		}
-		catch (StorageException e) {
-			throw new RuntimeException("Cannot set field '" + pluginOption.getName() + "' with value '" + pluginOptionCombo.getText()
-					+ "'. This is an ENUM, so this should not happen.", e);
-		}
-	}
-
-	private void setPluginOptionTextFieldVerifyListener(final TransferPluginOption pluginOption, final Text pluginOptionValueText) {
-		pluginOptionValueText.addVerifyListener(new VerifyListener() {
-			@Override
-			public void verifyText(VerifyEvent e) {
-				Text text = (Text) e.getSource();
-
-				// Get old text and create new text by using the VerifyEvent.text
-				final String oldValue = text.getText();
-				String newValue = oldValue.substring(0, e.start) + e.text + oldValue.substring(e.end);
-
-				// Validate correct type
-				ValidationResult validationResult = pluginOption.isValid(newValue);
-				e.doit = newValue.isEmpty() || validationResult != ValidationResult.INVALID_TYPE;
-			}
-		});
-	}
-
-	private void onSelectFileClick(TransferPluginOption pluginOption, Text pluginOptionValueText) {
-		if (pluginOption.getFileType() == FileType.FILE) {
+	private void onSelectFileClick(FileType fileType, Setter<File> setter, Text pluginOptionValueText) {
+		if (fileType == FileType.FILE) {
 			String filterPath = new File(pluginOptionValueText.getText()).getParent();
 
 			FileDialog fileDialog = new FileDialog(getShell(), SWT.OPEN);
@@ -513,15 +480,6 @@ public class PluginSettingsPanel extends Panel {
 	private boolean validateIndividualFields() {
 		logger.log(Level.INFO, " - Validating individual fields ...");
 
-		for (Map.Entry<TransferPluginOption, Control> optionControlEntry : pluginOptionControlMap.entrySet()) {
-			TransferPluginOption pluginOption = optionControlEntry.getKey();					
-			Control pluginOptionControl = optionControlEntry.getValue();
-
-			if (pluginOptionControl instanceof Text) {
-				modifyPluginOptionText(pluginOption, (Text) pluginOptionControl);	
-			}			
-		}
-
 		boolean validFields = invalidPluginOptions.size() == 0;
 
 		if (validFields) {
@@ -536,16 +494,14 @@ public class PluginSettingsPanel extends Panel {
 	private boolean validateFieldDependencies() {
 		logger.log(Level.INFO, " - Validating field dependencies ...");
 
-		try {
-			pluginSettings.validateRequiredFields();
-
+		boolean isValid = pluginSettings.isValid();
+		if (isValid) {
 			logger.log(Level.INFO, "Validation succeeded on panel.");
 			return true;
-		}
-		catch (StorageException e) {
-			showWarning(e.getMessage());
+		} else {
+			showWarning(pluginSettings.getReasonForLastValidationFail());
 
-			logger.log(Level.WARNING, "Validate error on panel.", e);
+			logger.log(Level.WARNING, "Validate error on panel.");
 			return false;
 		}
 	}

@@ -17,7 +17,7 @@
  */
 package org.syncany.plugins.gui;
 
-import org.syncany.plugins.Plugin;
+import org.syncany.api.transfer.Plugin;
 
 /**
  * Plugin for the graphical user interface.
@@ -25,10 +25,21 @@ import org.syncany.plugins.Plugin;
  * @author Philipp C. Heckel <philipp.heckel@gmail.com>
  * @author Vincent Wiencek <vwiencek@gmail.com>
  */
-public class GuiPlugin extends Plugin {
+public class GuiPlugin implements Plugin {
 	public static final String ID = "gui";
 	
-	public GuiPlugin() {
-		super(ID);
+	@Override
+	public String getId() {
+		return ID;
+	}
+
+	@Override
+	public String getName() {
+		return "Gui";
+	}
+
+	@Override
+	public String getVersion() {
+		return "0.5.0-alpha";
 	}
 }

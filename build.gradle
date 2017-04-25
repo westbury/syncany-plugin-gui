@@ -22,10 +22,10 @@ repositories {
 project.ext {
 	pluginId = "gui"
 	pluginName = "GUI"
-	pluginVersion = "0.4.9-alpha"
+	pluginVersion = "0.5.0-alpha"
 	pluginDebianVersion = "1"
 	pluginDate = new Date()
-	pluginAppMinVersion = "0.4.5-alpha"
+	pluginAppMinVersion = "0.5.0-alpha"
 	pluginRelease = rootProject.ext.applicationRelease
 	pluginConflictsWith = ""
 
@@ -69,7 +69,7 @@ public String getSwtLibrary(String os, String arch) {
 		case 'linux_64': swtJarName = 'gtk.linux.x86_64'; break;
 		case 'mac_64': case 'macosx_64': swtJarName = 'cocoa.macosx.x86_64'; break;
 		case 'mac_86': case 'macosx_86': swtJarName = 'cocoa.macosx'; break;
-		default: throw new Exception('Unknown OS');
+		default: throw new Exception('Unknown OS ' + osArch + '(' + os + ', ' + arch + ') (must be one of windows_86, windows_64, linux_86, linux_64, mac_86, or mac_64)');
 	}
 
 	return swtJarName;
@@ -85,6 +85,7 @@ dependencies {
 	compile		project(":syncany-lib")
 	compile		project(":syncany-util")
 	compile		project(":syncany-cli")
+	compile		project(":syncany-api")
 
 	compile		"commons-net:commons-net:2.2"
 	compile		"commons-beanutils:commons-beanutils:1.9.0"
@@ -94,6 +95,9 @@ dependencies {
 	compile		"com.google.guava:guava:15.0"
 	compile 	"commons-io:commons-io:2.4"
 	compile		"org.ocpsoft.prettytime:prettytime:3.2.5.Final"
+	compile			"net.sf.jopt-simple:jopt-simple:4.5"      
+	compile			"io.undertow:undertow-servlet:1.1.0.CR3"
+	compile			"io.undertow:undertow-websockets-jsr:1.1.0.CR3"
 
 	pluginjar			"commons-net:commons-net:2.2"
 	pluginjar			"commons-beanutils:commons-beanutils:1.9.0"

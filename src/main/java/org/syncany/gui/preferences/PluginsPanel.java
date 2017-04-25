@@ -56,7 +56,7 @@ import org.syncany.operations.plugin.PluginOperationOptions;
 import org.syncany.operations.plugin.PluginOperationOptions.PluginListMode;
 import org.syncany.operations.plugin.PluginOperationResult;
 import org.syncany.operations.plugin.PluginOperationResult.PluginResultCode;
-import org.syncany.plugins.Plugin;
+import org.syncany.api.transfer.Plugin;
 import org.syncany.plugins.gui.GuiPlugin;
 import org.syncany.util.EnvironmentUtil;
 
